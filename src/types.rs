@@ -33,6 +33,23 @@ pub(super) fn get_u32(data: &[u8], off: usize) -> Result<u32> {
     }
 }
 
+/// Get big-endian u16 without checking. Could panic
+pub(super) fn get_u16_unchecked(data: &[u8], off: usize) -> u16 {
+    ((data[off] as u16) << 8) | (data[off + 1] as u16)
+}
+
+/// Get big-endian i16 without checking. Could panic
+pub(super) fn get_i16_unchecked(data: &[u8], off: usize) -> i16 {
+    ((data[off] as i16) << 8) | (data[off + 1] as i16)
+}
+
+/// Get big-endian u32 without checking. Could panic
+pub(super) fn get_u32_unchecked(data: &[u8], off: usize) -> u32 {
+    ((data[off] as u32) << 24)
+        | ((data[off + 1] as u32) << 16)
+        | ((data[off + 2] as u32) << 8)
+        | (data[off + 3] as u32)
+}
 /// OpenType "tag"s are used to uniquely identify resources like tables etc.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(super) struct Tag(pub(super) u32);
@@ -48,3 +65,7 @@ impl Tag {
 pub(super) fn get_tag(data: &[u8], off: usize) -> Result<Tag> {
     get_u32(data, off).map(|n| Tag(n))
 }
+
+/// Glyph ID that is available to consumers of the library
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct GlyphID(pub(super) u32);

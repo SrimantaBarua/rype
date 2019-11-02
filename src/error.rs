@@ -13,6 +13,8 @@ pub enum Error {
     Invalid,
     /// Face index out of bounds
     FaceIndexOutOfBounds,
+    /// Glyph ID > number of available glyphs in the font
+    GlyphIDOutOfBounds,
 }
 
 impl From<std::io::Error> for Error {
@@ -27,6 +29,7 @@ impl std::fmt::Display for Error {
             Error::Io(ref e) => write!(f, "IO error: {}", e),
             Error::Invalid => write!(f, "invalid font file"),
             Error::FaceIndexOutOfBounds => writeln!(f, "face index out of bounds"),
+            Error::GlyphIDOutOfBounds => writeln!(f, "glyph ID out of bounds"),
         }
     }
 }
@@ -37,6 +40,7 @@ impl std::error::Error for Error {
             Error::Io(ref e) => e.description(),
             Error::Invalid => "invalid font file",
             Error::FaceIndexOutOfBounds => "face index out of bounds",
+            Error::GlyphIDOutOfBounds => "glyph ID out of bounds",
         }
     }
 

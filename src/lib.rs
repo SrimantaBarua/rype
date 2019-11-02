@@ -7,10 +7,13 @@ pub mod error;
 use error::*;
 
 mod types;
+pub use types::GlyphID;
 use types::*;
 
 mod head;
 mod hhea;
+mod hmtx;
+mod maxp;
 
 /// A face within the OpenType font file. This face alone cannot be used to render glyphs -
 /// it must be scaled first
@@ -18,6 +21,8 @@ pub struct Face<'a> {
     tables: HashMap<Tag, &'a [u8]>,
     head: head::Head<'a>,
     hhea: hhea::Hhea<'a>,
+    maxp: maxp::Maxp<'a>,
+    hmtx: hmtx::Hmtx<'a>,
 }
 
 impl<'a> std::fmt::Debug for Face<'a> {
@@ -25,6 +30,7 @@ impl<'a> std::fmt::Debug for Face<'a> {
         f.debug_struct("Face")
             .field("head", &self.head)
             .field("hhea", &self.hhea)
+            .field("maxp", &self.maxp)
             .finish()
     }
 }
@@ -48,18 +54,35 @@ impl<'a> Face<'a> {
             tables.insert(tag, table_data);
             record_off += 16;
         }
+        // Get the tables we need
         let head = tables
             .get(&Tag::from_str("head"))
             .ok_or(Error::Invalid)
-            .map(|data| head::Head(data))?;
+            .and_then(|data| head::Head::load(data))?;
         let hhea = tables
             .get(&Tag::from_str("hhea"))
             .ok_or(Error::Invalid)
-            .map(|data| hhea::Hhea(data))?;
+            .and_then(|data| hhea::Hhea::load(data))?;
+        let maxp = tables
+            .get(&Tag::from_str("maxp"))
+            .ok_or(Error::Invalid)
+            .and_then(|data| maxp::Maxp::load(data))?;
+        let hmtx = tables
+            .get(&Tag::from_str("hmtx"))
+            .ok_or(Error::Invalid)
+            .and_then(|data| {
+                hmtx::Hmtx::load(
+                    data,
+                    maxp.num_glyphs() as usize,
+                    hhea.num_of_h_metrics() as usize,
+                )
+            })?;
         Ok(Face {
             tables: tables,
             head: head,
             hhea: hhea,
+            maxp: maxp,
+            hmtx: hmtx,
         })
     }
 }
@@ -165,7 +188,7 @@ mod tests {
             "FontCollection { faces: [Ok(Face { head: Head \
              { units_per_em: 1950, xmin: -3556, ymin: -1001, xmax: 2385, ymax: 2401, \
              lowest_rec_ppem: 3, index_to_loc_format: 0 }, hhea: Hhea { ascender: 1800, \
-             descender: -600, num_of_h_metrics: 1746 } })] }"
+             descender: -600, num_of_h_metrics: 1746 }, maxp: Maxp { num_glyphs: 1746 } })] }"
         );
     }
 }
