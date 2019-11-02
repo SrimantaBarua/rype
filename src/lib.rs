@@ -9,11 +9,24 @@ use error::*;
 mod types;
 use types::*;
 
+mod head;
+mod hhea;
+
 /// A face within the OpenType font file. This face alone cannot be used to render glyphs -
 /// it must be scaled first
-#[derive(Debug)]
 pub struct Face<'a> {
     tables: HashMap<Tag, &'a [u8]>,
+    head: head::Head<'a>,
+    hhea: hhea::Hhea<'a>,
+}
+
+impl<'a> std::fmt::Debug for Face<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("Face")
+            .field("head", &self.head)
+            .field("hhea", &self.hhea)
+            .finish()
+    }
 }
 
 impl<'a> Face<'a> {
@@ -35,17 +48,43 @@ impl<'a> Face<'a> {
             tables.insert(tag, table_data);
             record_off += 16;
         }
-        Ok(Face { tables: tables })
+        let head = tables
+            .get(&Tag::from_str("head"))
+            .ok_or(Error::Invalid)
+            .map(|data| head::Head(data))?;
+        let hhea = tables
+            .get(&Tag::from_str("hhea"))
+            .ok_or(Error::Invalid)
+            .map(|data| hhea::Hhea(data))?;
+        Ok(Face {
+            tables: tables,
+            head: head,
+            hhea: hhea,
+        })
     }
 }
 
 /// An OpenType font file can either be a "font collection" (e.g. *.otc) file, or contain a
 /// single font. To provide a uniform interface, rype opens a font file as a `FontCollection`.
 /// The `FontCollection` can then be queried for individual `Face`s.
-#[derive(Debug)]
 pub struct FontCollection {
     data: Box<[u8]>,
     face_offsets: Vec<usize>,
+}
+
+impl std::fmt::Debug for FontCollection {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("FontCollection")
+            .field(
+                "faces",
+                &self
+                    .face_offsets
+                    .iter()
+                    .map(|off| Face::load(&self.data, *off))
+                    .collect::<Vec<Result<Face>>>(),
+            )
+            .finish()
+    }
 }
 
 impl FontCollection {
@@ -100,8 +139,8 @@ impl FontCollection {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use super::*;
+    use std::path::PathBuf;
 
     fn get_path(res: &str) -> PathBuf {
         let mut buf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -115,5 +154,18 @@ mod tests {
         let path = get_path("FiraCode-Regular.otf");
         let font_collection = FontCollection::new(&path).unwrap();
         let _face = font_collection.get_face(0).unwrap();
+    }
+
+    #[test]
+    fn fontcollection_debug() {
+        let path = get_path("FiraCode-Regular.otf");
+        let fc = FontCollection::new(&path).unwrap();
+        assert_eq!(
+            &format!("{:?}", fc),
+            "FontCollection { faces: [Ok(Face { head: Head \
+             { units_per_em: 1950, xmin: -3556, ymin: -1001, xmax: 2385, ymax: 2401, \
+             lowest_rec_ppem: 3, index_to_loc_format: 0 }, hhea: Hhea { ascender: 1800, \
+             descender: -600, num_of_h_metrics: 1746 } })] }"
+        );
     }
 }
