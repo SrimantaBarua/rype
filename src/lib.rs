@@ -10,6 +10,7 @@ mod types;
 pub use types::GlyphID;
 use types::*;
 
+mod cmap;
 mod head;
 mod hhea;
 mod hmtx;
@@ -23,6 +24,7 @@ pub struct Face<'a> {
     hhea: hhea::Hhea<'a>,
     maxp: maxp::Maxp<'a>,
     hmtx: hmtx::Hmtx<'a>,
+    cmap: cmap::Cmap<'a>,
 }
 
 impl<'a> std::fmt::Debug for Face<'a> {
@@ -31,6 +33,7 @@ impl<'a> std::fmt::Debug for Face<'a> {
             .field("head", &self.head)
             .field("hhea", &self.hhea)
             .field("maxp", &self.maxp)
+            .field("cmap", &self.cmap)
             .finish()
     }
 }
@@ -77,12 +80,17 @@ impl<'a> Face<'a> {
                     hhea.num_of_h_metrics() as usize,
                 )
             })?;
+        let cmap = tables
+            .get(&Tag::from_str("cmap"))
+            .ok_or(Error::Invalid)
+            .and_then(|data| cmap::Cmap::load(data))?;
         Ok(Face {
             tables: tables,
             head: head,
             hhea: hhea,
             maxp: maxp,
             hmtx: hmtx,
+            cmap: cmap,
         })
     }
 }
@@ -173,14 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn load_firacode() {
-        let path = get_path("FiraCode-Regular.otf");
-        let font_collection = FontCollection::new(&path).unwrap();
-        let _face = font_collection.get_face(0).unwrap();
-    }
-
-    #[test]
-    fn fontcollection_debug() {
+    fn test_firacode() {
         let path = get_path("FiraCode-Regular.otf");
         let fc = FontCollection::new(&path).unwrap();
         assert_eq!(
@@ -188,7 +189,11 @@ mod tests {
             "FontCollection { faces: [Ok(Face { head: Head \
              { units_per_em: 1950, xmin: -3556, ymin: -1001, xmax: 2385, ymax: 2401, \
              lowest_rec_ppem: 3, index_to_loc_format: 0 }, hhea: Hhea { ascender: 1800, \
-             descender: -600, num_of_h_metrics: 1746 }, maxp: Maxp { num_glyphs: 1746 } })] }"
+             descender: -600, num_of_h_metrics: 1746 }, maxp: Maxp { num_glyphs: 1746 }, \
+             cmap: Cmap([Subtable { platform_id: 0, encoding_id: 3, format: Ok(4) }, \
+             Subtable { platform_id: 3, encoding_id: 1, format: Ok(4) }, Subtable { \
+             platform_id: 0, encoding_id: 4, format: Ok(12) }, Subtable { platform_id: 3, \
+             encoding_id: 10, format: Ok(12) }]) })] }"
         );
     }
 }
