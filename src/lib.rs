@@ -14,12 +14,13 @@ mod cmap;
 mod head;
 mod hhea;
 mod hmtx;
+mod loca;
 mod maxp;
 
 /// A `Face` could either contain TrueType outlines, or CFF data
 #[derive(Debug)]
-pub enum FaceTyp {
-    TrueType,
+enum FaceTyp<'a> {
+    TrueType { loca: loca::Loca<'a> },
     CFF,
 }
 
@@ -32,7 +33,7 @@ pub struct Face<'a> {
     maxp: maxp::Maxp<'a>,
     hmtx: hmtx::Hmtx<'a>,
     cmap: cmap::Cmap<'a>,
-    typ: FaceTyp,
+    typ: FaceTyp<'a>,
 }
 
 impl<'a> std::fmt::Debug for Face<'a> {
@@ -109,8 +110,16 @@ impl<'a> Face<'a> {
             .get(&Tag::from_str("cmap"))
             .ok_or(Error::Invalid)
             .and_then(|data| cmap::Cmap::load(data))?;
+        let num_glyphs = maxp.num_glyphs() as usize;
+        let idx_to_loc_fmt = head.idx_to_loc_fmt()?;
         let typ = match sfnt_version {
-            Tag(0x00010000) => FaceTyp::TrueType,
+            Tag(0x00010000) => {
+                let loca = tables
+                    .get(&Tag::from_str("loca"))
+                    .ok_or(Error::Invalid)
+                    .and_then(|data| loca::Loca::load(data, num_glyphs, idx_to_loc_fmt))?;
+                FaceTyp::TrueType { loca: loca }
+            }
             Tag(0x4F54544F) => FaceTyp::CFF,
             _ => return Err(Error::Invalid),
         };
@@ -231,7 +240,7 @@ mod tests {
             &format!("{:?}", fc),
             "FontCollection { faces: [Ok(Face { head: Head \
              { units_per_em: 1950, xmin: -3556, ymin: -1001, xmax: 2385, ymax: 2401, \
-             lowest_rec_ppem: 3, index_to_loc_format: 0 }, hhea: Hhea { ascender: 1800, \
+             lowest_rec_ppem: 3, index_to_loc_format: Off16 }, hhea: Hhea { ascender: 1800, \
              descender: -600, num_of_h_metrics: 1746 }, maxp: Maxp { num_glyphs: 1746 }, \
              cmap: Cmap { subtables: [Subtable { platform_id: 0, encoding_id: 3, format: Ok(4) \
              }, Subtable { platform_id: 3, encoding_id: 1, format: Ok(4) }, Subtable { \
@@ -282,12 +291,13 @@ mod tests {
         assert_eq!(
             &format!("{:?}", fc),
             "FontCollection { faces: [Ok(Face { head: Head { units_per_em: 2048, xmin: -954, \
-             ymin: -605, xmax: 1355, ymax: 2027, lowest_rec_ppem: 6, index_to_loc_format: 1 }, \
-             hhea: Hhea { ascender: 1901, descender: -483, num_of_h_metrics: 1543 }, maxp: Maxp \
-             { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
+             ymin: -605, xmax: 1355, ymax: 2027, lowest_rec_ppem: 6, index_to_loc_format: \
+             Off32 }, hhea: Hhea { ascender: 1901, descender: -483, num_of_h_metrics: 1543 }, \
+             maxp: Maxp { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
              encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
              format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
-             format: Ok(4) }) }, typ: TrueType })] }"
+             format: Ok(4) }) }, typ: TrueType { loca: Loca { num_glyphs: 1573, index_to_loc_fmt: \
+             Off32 } } })] }"
         );
     }
 

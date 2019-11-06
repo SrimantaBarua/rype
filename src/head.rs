@@ -4,6 +4,12 @@
 use super::error::*;
 use super::types::{get_i16_unchecked, get_u16_unchecked};
 
+#[derive(Debug)]
+pub(super) enum IdxToLocFmt {
+    Off16,
+    Off32,
+}
+
 pub(super) struct Head<'a>(&'a [u8]);
 
 impl<'a> std::fmt::Debug for Head<'a> {
@@ -15,7 +21,7 @@ impl<'a> std::fmt::Debug for Head<'a> {
             .field("xmax", &self._xmax())
             .field("ymax", &self._ymax())
             .field("lowest_rec_ppem", &self._lowest_rec_ppem())
-            .field("index_to_loc_format", &self._idx_to_loc_fmt())
+            .field("index_to_loc_format", &self.idx_to_loc_fmt().unwrap())
             .finish()
     }
 }
@@ -53,7 +59,11 @@ impl<'a> Head<'a> {
         get_u16_unchecked(self.0, 46)
     }
 
-    pub(super) fn _idx_to_loc_fmt(&self) -> i16 {
-        get_i16_unchecked(self.0, 50)
+    pub(super) fn idx_to_loc_fmt(&self) -> Result<IdxToLocFmt> {
+        match get_i16_unchecked(self.0, 50) {
+            0 => Ok(IdxToLocFmt::Off16),
+            1 => Ok(IdxToLocFmt::Off32),
+            _ => Err(Error::Invalid),
+        }
     }
 }
