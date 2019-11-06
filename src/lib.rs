@@ -225,4 +225,48 @@ mod tests {
         assert_eq!(face.cmap.get_glyph_id('>' as u32).unwrap(), GlyphID(1171));
         assert_eq!(face.cmap.get_glyph_id('=' as u32).unwrap(), GlyphID(1169));
     }
+
+    #[test]
+    fn test_hack() {
+        let path = get_path("Hack-Regular.ttf");
+        let fc = FontCollection::new(&path).unwrap();
+        assert_eq!(
+            &format!("{:?}", fc),
+            "FontCollection { faces: [Ok(Face { head: Head { units_per_em: 2048, xmin: -954, \
+            ymin: -605, xmax: 1355, ymax: 2027, lowest_rec_ppem: 6, index_to_loc_format: 1 }, \
+            hhea: Hhea { ascender: 1901, descender: -483, num_of_h_metrics: 1543 }, maxp: Maxp \
+            { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
+            encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
+            format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
+            format: Ok(4) }) } })] }"
+        );
+    }
+
+    #[test]
+    fn test_hack_tables() {
+        let path = get_path("Hack-Regular.ttf");
+        let fc = FontCollection::new(&path).unwrap();
+        let face = fc.get_face(0).unwrap();
+        let tables = face.tables;
+        let mut names = tables.keys().map(|k| format!("{}", k)).collect::<Vec<String>>();
+        names.sort();
+        assert_eq!(&names.join(", "), "DSIG, GSUB, OS/2, TTFA, cmap, cvt , fpgm, gasp, glyf, \
+            head, hhea, hmtx, loca, maxp, name, post, prep");
+    }
+
+    #[test]
+    fn test_hack_cmap() {
+        let path = get_path("Hack-Regular.ttf");
+        let fc = FontCollection::new(&path).unwrap();
+        let face = fc.get_face(0).unwrap();
+        assert_eq!(face.cmap.get_glyph_id('A' as u32).unwrap(), GlyphID(1425));
+        assert_eq!(face.cmap.get_glyph_id('B' as u32).unwrap(), GlyphID(12));
+        assert_eq!(face.cmap.get_glyph_id('C' as u32).unwrap(), GlyphID(13));
+        assert_eq!(face.cmap.get_glyph_id('D' as u32).unwrap(), GlyphID(18));
+        assert_eq!(face.cmap.get_glyph_id('E' as u32).unwrap(), GlyphID(22));
+        assert_eq!(face.cmap.get_glyph_id('F' as u32).unwrap(), GlyphID(31));
+        assert_eq!(face.cmap.get_glyph_id('a' as u32).unwrap(), GlyphID(118));
+        assert_eq!(face.cmap.get_glyph_id('>' as u32).unwrap(), GlyphID(754));
+        assert_eq!(face.cmap.get_glyph_id('=' as u32).unwrap(), GlyphID(750));
+    }
 }
