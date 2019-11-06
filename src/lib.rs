@@ -199,6 +199,18 @@ mod tests {
     }
 
     #[test]
+    fn test_firacode_tables() {
+        let path = get_path("FiraCode-Regular.otf");
+        let fc = FontCollection::new(&path).unwrap();
+        let face = fc.get_face(0).unwrap();
+        let tables = face.tables;
+        let mut names = tables.keys().map(|k| format!("{}", k)).collect::<Vec<String>>();
+        names.sort();
+        assert_eq!(&names.join(", "), "CFF , GDEF, GPOS, GSUB, OS/2, cmap, head, hhea, \
+            hmtx, maxp, name, post");
+    }
+
+    #[test]
     fn test_firacode_cmap() {
         let path = get_path("FiraCode-Regular.otf");
         let fc = FontCollection::new(&path).unwrap();

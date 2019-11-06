@@ -61,6 +61,16 @@ impl Tag {
     }
 }
 
+impl std::fmt::Display for Tag {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let a = (self.0 >> 24) as u8 as char;
+        let b = ((self.0 >> 16) & 0xff) as u8 as char;
+        let c = ((self.0 >> 8) & 0xff) as u8 as char;
+        let d = (self.0 & 0xff) as u8 as char;
+        write!(f, "{}{}{}{}", a, b, c, d)
+    }
+}
+
 /// Get tag from big-endian data
 pub(super) fn get_tag(data: &[u8], off: usize) -> Result<Tag> {
     get_u32(data, off).map(|n| Tag(n))
