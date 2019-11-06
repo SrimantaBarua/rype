@@ -39,6 +39,22 @@ impl<'a> std::fmt::Debug for Face<'a> {
 }
 
 impl<'a> Face<'a> {
+    /// Scale face to get a `ScaledFace`
+    pub fn scale(&self, pix_width: u16, pix_height: u16, dpi_x: u16, dpi_y: u16) -> ScaledFace {
+        ScaledFace {
+            pix_width: pix_width,
+            pix_height: pix_height,
+            dpi_x: dpi_x,
+            dpi_y: dpi_y,
+            face: self,
+        }
+    }
+
+    /// Get glyph ID for codepoint
+    pub fn get_glyph_id(&self, codepoint: u32) -> Result<GlyphID> {
+        self.cmap.get_glyph_id(codepoint)
+    }
+
     /// Load face information from data. The `offset` provided is the offset from the beginning
     /// of the file to the Offset Table for the face
     fn load(data: &[u8], offset: usize) -> Result<Face> {
@@ -93,6 +109,18 @@ impl<'a> Face<'a> {
             cmap: cmap,
         })
     }
+}
+
+/// We can't render glyphs for a face without appropriate scaling. So, only a `ScaledFace`
+/// allows rendering of glyphs. Multiple `ScaledFace` instances can be created for the same
+/// `Face`, at negligible extra cost
+#[derive(Debug)]
+pub struct ScaledFace<'a> {
+    pix_width: u16,
+    pix_height: u16,
+    dpi_x: u16,
+    dpi_y: u16,
+    face: &'a Face<'a>,
 }
 
 /// An OpenType font file can either be a "font collection" (e.g. *.otc) file, or contain a
@@ -204,10 +232,16 @@ mod tests {
         let fc = FontCollection::new(&path).unwrap();
         let face = fc.get_face(0).unwrap();
         let tables = face.tables;
-        let mut names = tables.keys().map(|k| format!("{}", k)).collect::<Vec<String>>();
+        let mut names = tables
+            .keys()
+            .map(|k| format!("{}", k))
+            .collect::<Vec<String>>();
         names.sort();
-        assert_eq!(&names.join(", "), "CFF , GDEF, GPOS, GSUB, OS/2, cmap, head, hhea, \
-            hmtx, maxp, name, post");
+        assert_eq!(
+            &names.join(", "),
+            "CFF , GDEF, GPOS, GSUB, OS/2, cmap, head, hhea, \
+             hmtx, maxp, name, post"
+        );
     }
 
     #[test]
@@ -215,15 +249,15 @@ mod tests {
         let path = get_path("FiraCode-Regular.otf");
         let fc = FontCollection::new(&path).unwrap();
         let face = fc.get_face(0).unwrap();
-        assert_eq!(face.cmap.get_glyph_id('A' as u32).unwrap(), GlyphID(1));
-        assert_eq!(face.cmap.get_glyph_id('B' as u32).unwrap(), GlyphID(13));
-        assert_eq!(face.cmap.get_glyph_id('C' as u32).unwrap(), GlyphID(14));
-        assert_eq!(face.cmap.get_glyph_id('D' as u32).unwrap(), GlyphID(20));
-        assert_eq!(face.cmap.get_glyph_id('E' as u32).unwrap(), GlyphID(24));
-        assert_eq!(face.cmap.get_glyph_id('F' as u32).unwrap(), GlyphID(34));
-        assert_eq!(face.cmap.get_glyph_id('a' as u32).unwrap(), GlyphID(134));
-        assert_eq!(face.cmap.get_glyph_id('>' as u32).unwrap(), GlyphID(1171));
-        assert_eq!(face.cmap.get_glyph_id('=' as u32).unwrap(), GlyphID(1169));
+        assert_eq!(face.get_glyph_id('A' as u32).unwrap(), GlyphID(1));
+        assert_eq!(face.get_glyph_id('B' as u32).unwrap(), GlyphID(13));
+        assert_eq!(face.get_glyph_id('C' as u32).unwrap(), GlyphID(14));
+        assert_eq!(face.get_glyph_id('D' as u32).unwrap(), GlyphID(20));
+        assert_eq!(face.get_glyph_id('E' as u32).unwrap(), GlyphID(24));
+        assert_eq!(face.get_glyph_id('F' as u32).unwrap(), GlyphID(34));
+        assert_eq!(face.get_glyph_id('a' as u32).unwrap(), GlyphID(134));
+        assert_eq!(face.get_glyph_id('>' as u32).unwrap(), GlyphID(1171));
+        assert_eq!(face.get_glyph_id('=' as u32).unwrap(), GlyphID(1169));
     }
 
     #[test]
@@ -233,12 +267,12 @@ mod tests {
         assert_eq!(
             &format!("{:?}", fc),
             "FontCollection { faces: [Ok(Face { head: Head { units_per_em: 2048, xmin: -954, \
-            ymin: -605, xmax: 1355, ymax: 2027, lowest_rec_ppem: 6, index_to_loc_format: 1 }, \
-            hhea: Hhea { ascender: 1901, descender: -483, num_of_h_metrics: 1543 }, maxp: Maxp \
-            { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
-            encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
-            format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
-            format: Ok(4) }) } })] }"
+             ymin: -605, xmax: 1355, ymax: 2027, lowest_rec_ppem: 6, index_to_loc_format: 1 }, \
+             hhea: Hhea { ascender: 1901, descender: -483, num_of_h_metrics: 1543 }, maxp: Maxp \
+             { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
+             encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
+             format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
+             format: Ok(4) }) } })] }"
         );
     }
 
@@ -248,10 +282,16 @@ mod tests {
         let fc = FontCollection::new(&path).unwrap();
         let face = fc.get_face(0).unwrap();
         let tables = face.tables;
-        let mut names = tables.keys().map(|k| format!("{}", k)).collect::<Vec<String>>();
+        let mut names = tables
+            .keys()
+            .map(|k| format!("{}", k))
+            .collect::<Vec<String>>();
         names.sort();
-        assert_eq!(&names.join(", "), "DSIG, GSUB, OS/2, TTFA, cmap, cvt , fpgm, gasp, glyf, \
-            head, hhea, hmtx, loca, maxp, name, post, prep");
+        assert_eq!(
+            &names.join(", "),
+            "DSIG, GSUB, OS/2, TTFA, cmap, cvt , fpgm, gasp, glyf, \
+             head, hhea, hmtx, loca, maxp, name, post, prep"
+        );
     }
 
     #[test]
@@ -259,14 +299,14 @@ mod tests {
         let path = get_path("Hack-Regular.ttf");
         let fc = FontCollection::new(&path).unwrap();
         let face = fc.get_face(0).unwrap();
-        assert_eq!(face.cmap.get_glyph_id('A' as u32).unwrap(), GlyphID(1425));
-        assert_eq!(face.cmap.get_glyph_id('B' as u32).unwrap(), GlyphID(12));
-        assert_eq!(face.cmap.get_glyph_id('C' as u32).unwrap(), GlyphID(13));
-        assert_eq!(face.cmap.get_glyph_id('D' as u32).unwrap(), GlyphID(18));
-        assert_eq!(face.cmap.get_glyph_id('E' as u32).unwrap(), GlyphID(22));
-        assert_eq!(face.cmap.get_glyph_id('F' as u32).unwrap(), GlyphID(31));
-        assert_eq!(face.cmap.get_glyph_id('a' as u32).unwrap(), GlyphID(118));
-        assert_eq!(face.cmap.get_glyph_id('>' as u32).unwrap(), GlyphID(754));
-        assert_eq!(face.cmap.get_glyph_id('=' as u32).unwrap(), GlyphID(750));
+        assert_eq!(face.get_glyph_id('A' as u32).unwrap(), GlyphID(1425));
+        assert_eq!(face.get_glyph_id('B' as u32).unwrap(), GlyphID(12));
+        assert_eq!(face.get_glyph_id('C' as u32).unwrap(), GlyphID(13));
+        assert_eq!(face.get_glyph_id('D' as u32).unwrap(), GlyphID(18));
+        assert_eq!(face.get_glyph_id('E' as u32).unwrap(), GlyphID(22));
+        assert_eq!(face.get_glyph_id('F' as u32).unwrap(), GlyphID(31));
+        assert_eq!(face.get_glyph_id('a' as u32).unwrap(), GlyphID(118));
+        assert_eq!(face.get_glyph_id('>' as u32).unwrap(), GlyphID(754));
+        assert_eq!(face.get_glyph_id('=' as u32).unwrap(), GlyphID(750));
     }
 }
