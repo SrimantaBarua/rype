@@ -190,10 +190,27 @@ mod tests {
              { units_per_em: 1950, xmin: -3556, ymin: -1001, xmax: 2385, ymax: 2401, \
              lowest_rec_ppem: 3, index_to_loc_format: 0 }, hhea: Hhea { ascender: 1800, \
              descender: -600, num_of_h_metrics: 1746 }, maxp: Maxp { num_glyphs: 1746 }, \
-             cmap: Cmap([Subtable { platform_id: 0, encoding_id: 3, format: Ok(4) }, \
-             Subtable { platform_id: 3, encoding_id: 1, format: Ok(4) }, Subtable { \
+             cmap: Cmap { subtables: [Subtable { platform_id: 0, encoding_id: 3, format: Ok(4) \
+             }, Subtable { platform_id: 3, encoding_id: 1, format: Ok(4) }, Subtable { \
              platform_id: 0, encoding_id: 4, format: Ok(12) }, Subtable { platform_id: 3, \
-             encoding_id: 10, format: Ok(12) }]) })] }"
+             encoding_id: 10, format: Ok(12) }], active: Some(Subtable { platform_id: 3, \
+             encoding_id: 10, format: Ok(12) }) } })] }"
         );
+    }
+
+    #[test]
+    fn test_firacode_cmap() {
+        let path = get_path("FiraCode-Regular.otf");
+        let fc = FontCollection::new(&path).unwrap();
+        let face = fc.get_face(0).unwrap();
+        assert_eq!(face.cmap.get_glyph_id('A' as u32).unwrap(), GlyphID(1));
+        assert_eq!(face.cmap.get_glyph_id('B' as u32).unwrap(), GlyphID(13));
+        assert_eq!(face.cmap.get_glyph_id('C' as u32).unwrap(), GlyphID(14));
+        assert_eq!(face.cmap.get_glyph_id('D' as u32).unwrap(), GlyphID(20));
+        assert_eq!(face.cmap.get_glyph_id('E' as u32).unwrap(), GlyphID(24));
+        assert_eq!(face.cmap.get_glyph_id('F' as u32).unwrap(), GlyphID(34));
+        assert_eq!(face.cmap.get_glyph_id('a' as u32).unwrap(), GlyphID(134));
+        assert_eq!(face.cmap.get_glyph_id('>' as u32).unwrap(), GlyphID(1171));
+        assert_eq!(face.cmap.get_glyph_id('=' as u32).unwrap(), GlyphID(1169));
     }
 }
