@@ -16,6 +16,13 @@ mod hhea;
 mod hmtx;
 mod maxp;
 
+/// A `Face` could either contain TrueType outlines, or CFF data
+#[derive(Debug)]
+pub enum FaceTyp {
+    TrueType,
+    CFF,
+}
+
 /// A face within the OpenType font file. This face alone cannot be used to render glyphs -
 /// it must be scaled first
 pub struct Face<'a> {
@@ -25,6 +32,7 @@ pub struct Face<'a> {
     maxp: maxp::Maxp<'a>,
     hmtx: hmtx::Hmtx<'a>,
     cmap: cmap::Cmap<'a>,
+    typ: FaceTyp,
 }
 
 impl<'a> std::fmt::Debug for Face<'a> {
@@ -34,6 +42,7 @@ impl<'a> std::fmt::Debug for Face<'a> {
             .field("hhea", &self.hhea)
             .field("maxp", &self.maxp)
             .field("cmap", &self.cmap)
+            .field("typ", &self.typ)
             .finish()
     }
 }
@@ -58,7 +67,7 @@ impl<'a> Face<'a> {
     /// Load face information from data. The `offset` provided is the offset from the beginning
     /// of the file to the Offset Table for the face
     fn load(data: &[u8], offset: usize) -> Result<Face> {
-        //let version = get_tag(data, offset)?;
+        let sfnt_version = get_tag(data, offset)?;
         let num_tables = get_u16(data, offset + 4)? as usize;
         let mut record_off = offset + 12;
         let mut tables = HashMap::new();
@@ -100,6 +109,11 @@ impl<'a> Face<'a> {
             .get(&Tag::from_str("cmap"))
             .ok_or(Error::Invalid)
             .and_then(|data| cmap::Cmap::load(data))?;
+        let typ = match sfnt_version {
+            Tag(0x00010000) => FaceTyp::TrueType,
+            Tag(0x4F54544F) => FaceTyp::CFF,
+            _ => return Err(Error::Invalid),
+        };
         Ok(Face {
             tables: tables,
             head: head,
@@ -107,6 +121,7 @@ impl<'a> Face<'a> {
             maxp: maxp,
             hmtx: hmtx,
             cmap: cmap,
+            typ: typ,
         })
     }
 }
@@ -222,7 +237,7 @@ mod tests {
              }, Subtable { platform_id: 3, encoding_id: 1, format: Ok(4) }, Subtable { \
              platform_id: 0, encoding_id: 4, format: Ok(12) }, Subtable { platform_id: 3, \
              encoding_id: 10, format: Ok(12) }], active: Some(Subtable { platform_id: 3, \
-             encoding_id: 10, format: Ok(12) }) } })] }"
+             encoding_id: 10, format: Ok(12) }) }, typ: CFF })] }"
         );
     }
 
@@ -272,7 +287,7 @@ mod tests {
              { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
              encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
              format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
-             format: Ok(4) }) } })] }"
+             format: Ok(4) }) }, typ: TrueType })] }"
         );
     }
 
