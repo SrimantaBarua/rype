@@ -17,6 +17,8 @@ pub enum Error {
     GlyphIDOutOfBounds,
     /// No charmap loaded
     NoCharmap,
+    /// Support not yet implemented
+    Unimplemented(String),
 }
 
 impl From<std::io::Error> for Error {
@@ -32,7 +34,8 @@ impl std::fmt::Display for Error {
             Error::Invalid => write!(f, "invalid font file"),
             Error::FaceIndexOutOfBounds => write!(f, "face index out of bounds"),
             Error::GlyphIDOutOfBounds => write!(f, "glyph ID out of bounds"),
-            Error::NoCharmap => write!(f, "no charmap loaded")
+            Error::NoCharmap => write!(f, "no charmap loaded"),
+            Error::Unimplemented(ref s) => write!(f, "unimplemented: {}", s),
         }
     }
 }
@@ -44,7 +47,8 @@ impl std::error::Error for Error {
             Error::Invalid => "invalid font file",
             Error::FaceIndexOutOfBounds => "face index out of bounds",
             Error::GlyphIDOutOfBounds => "glyph ID out of bounds",
-            Error::NoCharmap => "no charmap loaded"
+            Error::NoCharmap => "no charmap loaded",
+            Error::Unimplemented(_) => "unimplemented: {}",
         }
     }
 

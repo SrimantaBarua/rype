@@ -11,16 +11,29 @@ pub use types::GlyphID;
 use types::*;
 
 mod cmap;
+mod glyf;
 mod head;
 mod hhea;
 mod hmtx;
 mod loca;
 mod maxp;
 
+/// Glyph outline information
+#[derive(Debug)]
+enum GlyphOutline<'a> {
+    TrueType(glyf::TTGlyph<'a>),
+}
+
+/// Data for a glyph
+#[derive(Debug)]
+struct Glyph<'a> {
+    outline: GlyphOutline<'a>
+}
+
 /// A `Face` could either contain TrueType outlines, or CFF data
 #[derive(Debug)]
 enum FaceTyp<'a> {
-    TrueType { loca: loca::Loca<'a> },
+    TrueType(loca::Loca<'a>, glyf::Glyf<'a>),
     CFF,
 }
 
@@ -50,12 +63,12 @@ impl<'a> std::fmt::Debug for Face<'a> {
 
 impl<'a> Face<'a> {
     /// Scale face to get a `ScaledFace`
-    pub fn scale(&self, pix_width: u16, pix_height: u16, dpi_x: u16, dpi_y: u16) -> ScaledFace {
+    pub fn scale(&self, point_width: f32, point_height: f32, dpi_x: u16, dpi_y: u16) -> ScaledFace {
+        let pix_width = (point_width * dpi_x as f32) / 72.0;
+        let pix_height = (point_height * dpi_y as f32) / 72.0;
         ScaledFace {
             pix_width: pix_width,
             pix_height: pix_height,
-            dpi_x: dpi_x,
-            dpi_y: dpi_y,
             face: self,
         }
     }
@@ -63,6 +76,19 @@ impl<'a> Face<'a> {
     /// Get glyph ID for codepoint
     pub fn get_glyph_id(&self, codepoint: u32) -> Result<GlyphID> {
         self.cmap.get_glyph_id(codepoint)
+    }
+
+    /// Get glyph information
+    fn get_glyph(&self, id: GlyphID) -> Result<Glyph> {
+        match self.typ {
+            FaceTyp::TrueType(ref loca, ref glyf) => loca
+                .get_offset(id)
+                .and_then(|off| glyf.glyph(off))
+                .map(|ttglyph| Glyph {
+                    outline: GlyphOutline::TrueType(ttglyph)
+                }),
+            FaceTyp::CFF => Err(Error::Unimplemented("CFF support".to_owned())),
+        }
     }
 
     /// Load face information from data. The `offset` provided is the offset from the beginning
@@ -118,7 +144,11 @@ impl<'a> Face<'a> {
                     .get(&Tag::from_str("loca"))
                     .ok_or(Error::Invalid)
                     .and_then(|data| loca::Loca::load(data, num_glyphs, idx_to_loc_fmt))?;
-                FaceTyp::TrueType { loca: loca }
+                let glyf = tables
+                    .get(&Tag::from_str("glyf"))
+                    .ok_or(Error::Invalid)
+                    .map(|data| glyf::Glyf(data))?;
+                FaceTyp::TrueType(loca, glyf)
             }
             Tag(0x4F54544F) => FaceTyp::CFF,
             _ => return Err(Error::Invalid),
@@ -135,16 +165,38 @@ impl<'a> Face<'a> {
     }
 }
 
+/// Glyph data with scaling
+#[derive(Debug)]
+pub struct ScaledGlyph<'a> {
+    pix_width: f32,
+    pix_height: f32,
+    glyph: Glyph<'a>,
+}
+
 /// We can't render glyphs for a face without appropriate scaling. So, only a `ScaledFace`
 /// allows rendering of glyphs. Multiple `ScaledFace` instances can be created for the same
 /// `Face`, at negligible extra cost
 #[derive(Debug)]
 pub struct ScaledFace<'a> {
-    pix_width: u16,
-    pix_height: u16,
-    dpi_x: u16,
-    dpi_y: u16,
+    pix_width: f32,
+    pix_height: f32,
     face: &'a Face<'a>,
+}
+
+impl<'a> ScaledFace<'a> {
+    /// Get glyph ID for codepoint
+    pub fn get_glyph_id(&self, codepoint: u32) -> Result<GlyphID> {
+        self.face.get_glyph_id(codepoint)
+    }
+
+    /// Get glyph information for glyph_id
+    pub fn get_glyph(&self, glyph_id: GlyphID) -> Result<ScaledGlyph> {
+        self.face.get_glyph(glyph_id).map(|glyph| ScaledGlyph {
+            pix_height: self.pix_height,
+            pix_width: self.pix_width,
+            glyph: glyph,
+        })
+    }
 }
 
 /// An OpenType font file can either be a "font collection" (e.g. *.otc) file, or contain a
@@ -296,8 +348,8 @@ mod tests {
              maxp: Maxp { num_glyphs: 1573 }, cmap: Cmap { subtables: [Subtable { platform_id: 0, \
              encoding_id: 3, format: Ok(4) }, Subtable { platform_id: 3, encoding_id: 1, \
              format: Ok(4) }], active: Some(Subtable { platform_id: 3, encoding_id: 1, \
-             format: Ok(4) }) }, typ: TrueType { loca: Loca { num_glyphs: 1573, index_to_loc_fmt: \
-             Off32 } } })] }"
+             format: Ok(4) }) }, typ: TrueType(Loca { num_glyphs: 1573, index_to_loc_fmt: \
+             Off32 }, Glyf) })] }"
         );
     }
 
