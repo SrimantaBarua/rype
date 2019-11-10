@@ -15,7 +15,7 @@ pub(super) struct Head<'a>(&'a [u8]);
 impl<'a> std::fmt::Debug for Head<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("Head")
-            .field("units_per_em", &self._units_per_em())
+            .field("units_per_em", &self.units_per_em())
             .field("xmin", &self._xmin())
             .field("ymin", &self._ymin())
             .field("xmax", &self._xmax())
@@ -35,7 +35,7 @@ impl<'a> Head<'a> {
         }
     }
 
-    pub(super) fn _units_per_em(&self) -> u16 {
+    pub(super) fn units_per_em(&self) -> u16 {
         get_u16_unchecked(self.0, 18)
     }
 

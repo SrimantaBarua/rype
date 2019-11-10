@@ -1,7 +1,17 @@
 //! Types and accessors
 // (C) 2019 Srimanta Barua <srimanta.barua1@gmail.com>
 
+use rster::Point;
 use crate::error::*;
+
+/// Get u8 checked
+pub(super) fn get_u8(data: &[u8], off: usize) -> Result<u8> {
+    if off + 1 > data.len() {
+        Err(Error::Invalid)
+    } else {
+        Ok(data[off])
+    }
+}
 
 /// Get big-endian u16
 pub(super) fn get_u16(data: &[u8], off: usize) -> Result<u16> {
@@ -79,3 +89,104 @@ pub(super) fn get_tag(data: &[u8], off: usize) -> Result<Tag> {
 /// Glyph ID that is available to consumers of the library
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct GlyphID(pub(super) u32);
+
+/// Affine transformation matrix
+#[derive(Clone, Debug)]
+pub(super) struct Affine {
+    a0: f32,
+    b0: f32,
+    c0: f32,
+    a1: f32,
+    b1: f32,
+    c1: f32,
+}
+
+impl Affine {
+    pub(super) fn apply_point(&self, p: &Point) -> Point {
+        Point {
+            x: self.a0 * p.x + self.b0 * p.y + self.c0,
+            y: self.a1 * p.x + self.b1 * p.y + self.c1,
+        }
+    }
+
+    pub(super) fn ident() -> Affine {
+        Affine {
+            a0: 1.0,
+            b0: 0.0,
+            c0: 0.0,
+            a1: 0.0,
+            b1: 1.0,
+            c1: 0.0,
+        }
+    }
+
+    pub(super) fn scaling(x: f32, y: f32) -> Affine {
+        Affine {
+            a0: x,
+            b0: 0.0,
+            c0: 0.0,
+            a1: 0.0,
+            b1: y,
+            c1: 0.0,
+        }
+    }
+
+    pub(super) fn translation(x: f32, y: f32) -> Affine {
+        Affine {
+            a0: 1.0,
+            b0: 0.0,
+            c0: x,
+            a1: 0.0,
+            b1: 1.0,
+            c1: y,
+        }
+    }
+
+    pub(super) fn rotation(angle: f32) -> Affine {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        Affine {
+            a0: cos,
+            b0: -sin,
+            c0: 0.0,
+            a1: sin,
+            b1: cos,
+            c1: 0.0,
+        }
+    }
+
+    pub(super) fn scaled(self, x: f32, y: f32) -> Affine {
+        Affine {
+            a0: self.a0 * x,
+            b0: self.b0 * x,
+            c0: self.c0 * x,
+            a1: self.a1 * y,
+            b1: self.b1 * y,
+            c1: self.c1 * y,
+        }
+    }
+
+    pub(super) fn translated(self, x: f32, y: f32) -> Affine {
+        Affine {
+            a0: self.a0,
+            b0: self.b0,
+            c0: self.c0 * x,
+            a1: self.a1,
+            b1: self.b1,
+            c1: self.c1 * y,
+        }
+    }
+
+    pub(super) fn rotated(self, angle: f32) -> Affine {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        Affine {
+            a0: self.a0 * cos - self.a1 * sin,
+            b0: self.b0 * cos - self.b1 * sin,
+            c0: self.c0 * cos - self.c1 * sin,
+            a1: self.a0 * sin + self.a1 * cos,
+            b1: self.a0 * sin + self.a1 * cos,
+            c1: self.a0 * sin + self.a1 * cos,
+        }
+    }
+}

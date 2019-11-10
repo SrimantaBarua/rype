@@ -18,6 +18,13 @@ mod hmtx;
 mod loca;
 mod maxp;
 
+/// Result of rendering a glyph
+pub struct GlyphBitmap {
+    pub width: usize,
+    pub height: usize,
+    pub data: Box<[u8]>,
+}
+
 /// Glyph outline information
 #[derive(Debug)]
 enum GlyphOutline<'a> {
@@ -27,7 +34,7 @@ enum GlyphOutline<'a> {
 /// Data for a glyph
 #[derive(Debug)]
 struct Glyph<'a> {
-    outline: GlyphOutline<'a>
+    outline: GlyphOutline<'a>,
 }
 
 /// A `Face` could either contain TrueType outlines, or CFF data
@@ -64,11 +71,12 @@ impl<'a> std::fmt::Debug for Face<'a> {
 impl<'a> Face<'a> {
     /// Scale face to get a `ScaledFace`
     pub fn scale(&self, point_width: f32, point_height: f32, dpi_x: u16, dpi_y: u16) -> ScaledFace {
-        let pix_width = (point_width * dpi_x as f32) / 72.0;
-        let pix_height = (point_height * dpi_y as f32) / 72.0;
+        let units_per_em = self.head.units_per_em() as f32;
+        let pix_width = (point_width * dpi_x as f32) / (72.0 * units_per_em);
+        let pix_height = (point_height * dpi_y as f32) / (72.0 * units_per_em);
         ScaledFace {
-            pix_width: pix_width,
-            pix_height: pix_height,
+            scale_width: pix_width,
+            scale_height: pix_height,
             face: self,
         }
     }
@@ -85,7 +93,7 @@ impl<'a> Face<'a> {
                 .get_offset(id)
                 .and_then(|off| glyf.glyph(off))
                 .map(|ttglyph| Glyph {
-                    outline: GlyphOutline::TrueType(ttglyph)
+                    outline: GlyphOutline::TrueType(ttglyph),
                 }),
             FaceTyp::CFF => Err(Error::Unimplemented("CFF support".to_owned())),
         }
@@ -168,9 +176,17 @@ impl<'a> Face<'a> {
 /// Glyph data with scaling
 #[derive(Debug)]
 pub struct ScaledGlyph<'a> {
-    pix_width: f32,
-    pix_height: f32,
+    scale_width: f32,
+    scale_height: f32,
     glyph: Glyph<'a>,
+}
+
+impl<'a> ScaledGlyph<'a> {
+    pub fn render(&self) -> Result<GlyphBitmap> {
+        match self.glyph.outline {
+            GlyphOutline::TrueType(ref ttg) => ttg.render(self.scale_width, self.scale_height),
+        }
+    }
 }
 
 /// We can't render glyphs for a face without appropriate scaling. So, only a `ScaledFace`
@@ -178,8 +194,8 @@ pub struct ScaledGlyph<'a> {
 /// `Face`, at negligible extra cost
 #[derive(Debug)]
 pub struct ScaledFace<'a> {
-    pix_width: f32,
-    pix_height: f32,
+    scale_width: f32,
+    scale_height: f32,
     face: &'a Face<'a>,
 }
 
@@ -192,8 +208,8 @@ impl<'a> ScaledFace<'a> {
     /// Get glyph information for glyph_id
     pub fn get_glyph(&self, glyph_id: GlyphID) -> Result<ScaledGlyph> {
         self.face.get_glyph(glyph_id).map(|glyph| ScaledGlyph {
-            pix_height: self.pix_height,
-            pix_width: self.pix_width,
+            scale_height: self.scale_height,
+            scale_width: self.scale_width,
             glyph: glyph,
         })
     }
